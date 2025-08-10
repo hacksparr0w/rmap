@@ -66,6 +66,9 @@ def retry(
             last_error = None
 
             while retries < maximum_retries:
+                if retries > 0 and on_retry:
+                    await on_retry()
+
                 try:
                     return await function(*args, **kwargs)
                 except Exception as error:
@@ -74,9 +77,6 @@ def retry(
 
                     last_error = error
                     retries += 1
-
-                    if on_retry:
-                        await on_retry()
 
             raise last_error
 
@@ -102,7 +102,12 @@ async def main():
         pass
 
     registry = await rmap.registry.load(_REGISTRY_DIRECTORY)
-    urls = []
+
+    async with \
+        aiofiles.open("./failed_urls.txt", "r", encoding="utf-8") as stream:
+
+        urls = await stream.readlines()
+        urls = [url[:-1] for url in urls]
 
     async with playwright.async_api.async_playwright() as parent:
         client = PlaywrightClient(parent)
@@ -123,6 +128,9 @@ async def main():
             except Exception as error:
                 print(f"An error occurred while scraping '{url}'")
                 print(error)
+
+                await client.page.screenshot(path="./last_error.png")
+                await client.restart()
 
                 continue
             
