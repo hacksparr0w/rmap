@@ -130,7 +130,7 @@ async def main():
             registry.comments.update(comments)
 
         await client.stop()
-        await rmap.registry.dump(_REGISTRY_DIRECTORY / "test")
+        await rmap.registry.dump(registry, _REGISTRY_DIRECTORY / "test")
 
 
 if __name__ == "__main__":
