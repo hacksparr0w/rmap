@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 import aiofiles
@@ -21,8 +23,8 @@ __all__ = (
 _DEFAULT_ENCODING = "utf-8"
 
 
-async def _write(entity, output):
-    await output.write(entity.model_dump_json())
+async def write_model(model, output):
+    await output.write(model.model_dump_json())
     await output.write("\n")
 
 
@@ -39,28 +41,43 @@ def get_comment_file(root: Path) -> Path:
     return root / "comments.feed"
 
 
+async def load_posts(path: Path) -> set[Post]:
+    posts = set()
+
+    async with aiofiles.open(path, "r", encoding=_DEFAULT_ENCODING) as stream:
+        async for line in stream:
+            posts.add(Post.model_validate_json(line))
+
+    return posts
+
+
+async def load_comments(path: Path) -> set[Post]:
+    comments = set()
+
+    async with aiofiles.open(path, "r", encoding=_DEFAULT_ENCODING) as stream:
+        async for line in stream:
+            comments.add(Comment.model_validate_json(line))
+
+    return comments
+
+
 async def load(root: Path) -> Registry:
     post_file = get_post_file(root)
     comment_file = get_comment_file(root)
-    encoding = _DEFAULT_ENCODING
 
     posts = set()
     comments = set()
 
-    async with \
-        aiofiles.open(post_file, "r", encoding=encoding) as post_stream, \
-        aiofiles.open(comment_file, "r", encoding=encoding) as comment_stream:
+    if post_file.exists():
+        posts = await load_posts(post_file)
 
-        async for line in post_stream:
-            posts.add(Post.model_validate_json(line))
-        
-        async for line in comment_stream:
-            comments.add(Comment.model_validate_json(line))
+    if comment_file.exists():
+        comments = await load_comments(comment_file)
 
-        return Registry(
-            posts=posts,
-            comments=comments
-        )
+    return Registry(
+        posts=posts,
+        comments=comments
+    )
 
 
 async def dump(registry: Registry, root: Path) -> None:
@@ -73,7 +90,7 @@ async def dump(registry: Registry, root: Path) -> None:
         aiofiles.open(comment_file, "w", encoding=encoding) as comment_stream:
 
         for post in registry.posts:
-            await _write(post, post_stream)
+            await write_model(post, post_stream)
 
         for comment in registry.comments:
-            await _write(comment, comment_stream)
+            await write_model(comment, comment_stream)

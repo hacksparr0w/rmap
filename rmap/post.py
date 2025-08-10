@@ -20,7 +20,7 @@ __all__ = (
 
 _EXPANDABLE_SELECTORS = (
     ('faceplate-partial[loading="action"]', None),
-    ('shreddit-comment[collapsed]', {"x": 10, "y": 21})
+    ('shreddit-comment[collapsed]', {"x": 14, "y": 20})
 )
 
 
@@ -104,6 +104,7 @@ async def expand_comments(page: Page, latency: float = 0.75) -> None:
             if not is_visible:
                 continue
 
+            await page.evaluate("window.scrollTo({ top: 0 })")
             await target.click(force=True, position=position)
             at_least_one = True
             await asyncio.sleep(latency)

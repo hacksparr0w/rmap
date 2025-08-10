@@ -103,11 +103,7 @@ async def main():
 
     registry = await rmap.registry.load(_REGISTRY_DIRECTORY)
 
-    async with \
-        aiofiles.open("./failed_urls.txt", "r", encoding="utf-8") as stream:
-
-        urls = await stream.readlines()
-        urls = [url[:-1] for url in urls]
+    urls = await get_urls()
 
     async with playwright.async_api.async_playwright() as parent:
         client = PlaywrightClient(parent)
@@ -115,6 +111,9 @@ async def main():
         await client.restart()
 
         for url in urls:
+            if any(x for x in registry.posts if url.endswith(x.permalink)):
+                continue
+
             print(f"Scraping '{url}'")
 
             try:
@@ -133,7 +132,7 @@ async def main():
                 await client.restart()
 
                 continue
-            
+
             registry.posts.add(post)
             registry.comments.update(comments)
 
