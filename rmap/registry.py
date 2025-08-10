@@ -44,14 +44,18 @@ async def load(root: Path) -> Registry:
     comment_file = get_comment_file(root)
     encoding = _DEFAULT_ENCODING
 
+    posts = set()
+    comments = set()
+
     async with \
         aiofiles.open(post_file, "r", encoding=encoding) as post_stream, \
         aiofiles.open(comment_file, "r", encoding=encoding) as comment_stream:
 
-        posts = {Post.model_validate_json(line) for line in post_stream}
-        comments = {
-            Comment.model_validate_json(line) for line in comment_stream
-        }
+        async for line in post_stream:
+            posts.add(Post.model_validate_json(line))
+        
+        async for line in comment_stream:
+            comments.add(Comment.model_validate_json(line))
 
         return Registry(
             posts=posts,
