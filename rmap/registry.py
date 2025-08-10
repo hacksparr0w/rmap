@@ -72,8 +72,8 @@ async def dump(registry: Registry, root: Path) -> None:
         aiofiles.open(post_file, "w", encoding=encoding) as post_stream, \
         aiofiles.open(comment_file, "w", encoding=encoding) as comment_stream:
 
-        for post in posts:
+        for post in registry.posts:
             await _write(post, post_stream)
 
-        for comment in comments:
+        for comment in registry.comments:
             await _write(comment, comment_stream)
