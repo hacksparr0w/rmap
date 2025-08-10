@@ -10,7 +10,7 @@ __all__ = (
 )
 
 
-class Comment(BaseModel):
+class Comment(BaseModel, frozen=True):
     id: str
     permalink: Optional[str]
     post_id: str

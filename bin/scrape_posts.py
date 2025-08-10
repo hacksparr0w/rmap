@@ -5,13 +5,13 @@ from pathlib import Path
 from typing import Optional
 
 import aiohttp
-import aiofiles
 import aiofiles.os
 import playwright.async_api
 import rmap.post
+import rmap.registry
 
 
-_OUTPUT_DIRECTORY = Path.home() / ".rmap"
+_REGISTRY_DIRECTORY = Path.home() / ".rmap"
 _URLS_FILE_URL = "https://gist.githubusercontent.com/hacksparr0w/a3d74186b9ff8f23a2256e72023a5234/raw/57c49a5d5f88bab7ed1526f0758c5862814f7858/reddit_post_urls.txt"
 
 
@@ -44,12 +44,6 @@ class PlaywrightClient:
         self.page = None
         self.browser_context = None
         self.browser = None
-
-
-async def write(entity, output):
-    await output.write(entity.model_dump_json())
-    await output.write("\n")
-    await output.flush()
 
 
 async def get_urls():
@@ -103,19 +97,14 @@ async def scrape(client, url):
 
 async def main():
     try:
-        await aiofiles.os.mkdir(_OUTPUT_DIRECTORY)
+        await aiofiles.os.mkdir(_REGISTRY_DIRECTORY)
     except FileExistsError:
         pass
 
-    post_file = _OUTPUT_DIRECTORY / "posts.feed"
-    comment_file = _OUTPUT_DIRECTORY / "comment.feed"
+    registry = await rmap.registry.load(_REGISTRY_DIRECTORY)
+    urls = []
 
-    urls = await get_urls()
-
-    async with playwright.async_api.async_playwright() as parent, \
-        aiofiles.open(post_file, "a", encoding="utf-8") as post_output, \
-        aiofiles.open(comment_file, "a", encoding="utf-8") as comment_output:
-
+    async with playwright.async_api.async_playwright() as parent:
         client = PlaywrightClient(parent)
 
         await client.restart()
@@ -136,13 +125,12 @@ async def main():
                 print(error)
 
                 continue
-
-            await write(post, post_output)
-
-            for comment in comments:
-                await write(comment, comment_output)
+            
+            registry.posts.add(post)
+            registry.comments.update(comments)
 
         await client.stop()
+        await rmap.registry.dump(_REGISTRY_DIRECTORY / "test")
 
 
 if __name__ == "__main__":

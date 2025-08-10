@@ -10,6 +10,7 @@ from .comment import Comment, parse as parse_comment
 
 __all__ = (
     "Post",
+
     "expand_comments",
     "get_url",
     "parse",
@@ -23,7 +24,7 @@ _EXPANDABLE_SELECTORS = (
 )
 
 
-class Post(BaseModel):
+class Post(BaseModel, frozen=True):
     id: str
     title: str
     permalink: str
