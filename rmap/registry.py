@@ -63,7 +63,8 @@ async def dump(registry: Registry, root: Path) -> None:
     comment_file = get_comment_file(root)
     encoding = _DEFAULT_ENCODING
 
-    with aiofiles.open(post_file, "w", encoding=encoding) as post_stream,
+    async with \
+        aiofiles.open(post_file, "w", encoding=encoding) as post_stream, \
         aiofiles.open(comment_file, "w", encoding=encoding) as comment_stream:
 
         for post in posts:
