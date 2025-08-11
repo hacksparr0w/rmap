@@ -112,6 +112,8 @@ async def main():
     if not ids:
         return
 
+    print(f"Loaded {len(ids)} post IDs to scrape", flush=True)
+
     async with playwright.async_api.async_playwright() as parent:
         client = PlaywrightClient(parent)
 
@@ -120,7 +122,7 @@ async def main():
         for id in ids:
             url = rmap.post.get_url_from_id(id)
 
-            print(f"Scraping '{url}'")
+            print(f"Scraping '{url}'", flush=True)
 
             try:
                 post, comments = await retry(
@@ -131,8 +133,12 @@ async def main():
                     on_retry=client.restart
                 )(scrape)(client, url)
             except Exception as error:
-                print(f"An error occurred while scraping '{url}'")
-                print(error)
+                print(
+                    f"An {type(error)} occurred while scraping '{url}'",
+                    flush=True
+                )
+
+                print(error, flush=True)
 
                 await client.restart()
 

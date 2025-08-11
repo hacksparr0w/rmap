@@ -108,13 +108,14 @@ async def main():
 
     registry = await rmap.registry.load(_REGISTRY_DIRECTORY)
     usernames = \
-        {x.author for x in registry.posts} | \
-        {x.author for x in registry.post_comments} | \
-        {x.author for x in registry.user_comments \
-            if x.subreddit == "universityofamsterdam"}
+        ({x.author for x in registry.posts} | \
+            {x.author for x in registry.post_comments}) - \
+        {x.author for x in registry.user_comments}
 
     if not usernames:
         return
+
+    print(f"Loaded {len(usernames)} usernames to scrape", flush=True)
 
     async with playwright.async_api.async_playwright() as parent:
         client = PlaywrightClient(parent)
@@ -124,7 +125,7 @@ async def main():
         for username in usernames:
             url = rmap.user.get_comment_url(username)
 
-            print(f"Scraping '{url}'")
+            print(f"Scraping '{url}'", flush=True)
 
             try:
                 comments = await retry(
@@ -135,8 +136,12 @@ async def main():
                     on_retry=client.restart
                 )(scrape)(client, url)
             except Exception as error:
-                print(f"An error occurred while scraping '{url}'")
-                print(error)
+                print(
+                    f"An {type(error)} occurred while scraping '{url}'",
+                    flush=True
+                )
+
+                print(error, flush=True)
 
                 await client.page.screenshot(path="./last_error.png")
                 await client.restart()
