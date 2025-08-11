@@ -5,8 +5,7 @@ from typing import Optional
 from playwright.async_api import Locator, Page
 from pydantic import BaseModel
 
-from .comment import Comment, parse as parse_comment
-
+from .base import get_main_url, get_short_url
 
 __all__ = (
     "Post",
@@ -14,6 +13,7 @@ __all__ = (
     "expand_comments",
     "get_url",
     "parse",
+    "parse_comment",
     "scrape"
 )
 
@@ -39,8 +39,24 @@ class Post(BaseModel, frozen=True):
     created_at: str
 
 
-def get_url(permalink: str) -> str:
-    return "https://www.reddit.com" + permalink
+class Comment(BaseModel, frozen=True):
+    id: str
+    permalink: Optional[str]
+    post_id: str
+    parent_id: Optional[str]
+    author: str
+    score: Optional[int]
+    content: Optional[str]
+    is_deleted: bool
+    created_at: str
+
+
+def get_url_from_permalink(permalink: str) -> str:
+    return get_main_url() + permalink
+
+
+def get_url_from_id(id: str) -> str:
+    return get_short_url() + "/" + id[3:]
 
 
 async def parse(root: Locator) -> Post:
@@ -81,6 +97,45 @@ async def parse(root: Locator) -> Post:
         subreddit=subreddit,
         subreddit_id=subreddit_id,
         comment_count=comment_count,
+        score=score,
+        content=content,
+        is_deleted=is_deleted,
+        created_at=created_at
+    )
+
+
+async def parse_comment(root: Locator, post_id: str) -> Comment:
+    content_locator = root \
+        .locator('div[slot="comment"]') \
+        .nth(0)
+
+    content_element_count = await content_locator.count()
+
+    id = await root.get_attribute("thingid")
+    permalink = await root.get_attribute("permalink")
+    parent_id = await root.get_attribute("parentid")
+
+    author = await root.get_attribute("author")
+
+    is_deleted = await root.get_attribute("is-comment-deleted") == "true" or \
+        content_element_count == 0
+
+    score = await root.get_attribute("score")
+    score = int(score) if score else None
+    content = await content_locator.inner_text() if not is_deleted else None
+
+    time_locator = root \
+        .locator('div[slot="commentMeta"] time') \
+        .nth(0)
+
+    created_at = await time_locator.get_attribute("datetime")
+
+    return Comment(
+        id=id,
+        permalink=permalink,
+        post_id= post_id,
+        parent_id=parent_id,
+        author=author,
         score=score,
         content=content,
         is_deleted=is_deleted,

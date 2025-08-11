@@ -6,91 +6,98 @@ import aiofiles
 
 from pydantic import BaseModel
 
-from .comment import Comment
-from .post import Post
+from .post import Post, Comment as PostComment
+from .user import Comment as UserComment
 
 
 __all__ = (
     "Registry",
 
     "dump",
-    "get_comment_file",
+    "dump_models",
+    "get_post_comment_file",
     "get_post_file",
-    "load"
+    "get_user_comment_file",
+    "load",
+    "load_models",
 )
 
 
 _DEFAULT_ENCODING = "utf-8"
 
 
-async def write_model(model, output):
-    await output.write(model.model_dump_json())
-    await output.write("\n")
-
-
 class Registry(BaseModel):
     posts: set[Post]
-    comments: set[Comment]
+    post_comments: set[PostComment]
+    user_comments: set[UserComment]
 
 
 def get_post_file(root: Path) -> Path:
     return root / "posts.feed"
 
 
-def get_comment_file(root: Path) -> Path:
-    return root / "comments.feed"
+def get_post_comment_file(root: Path) -> Path:
+    return root / "post_comments.feed"
 
 
-async def load_posts(path: Path) -> set[Post]:
-    posts = set()
+def get_user_comment_file(root: Path) -> Path:
+    return root / "user_comments.feed"
+
+
+async def dump_models(models: Iterable[BaseModel], path: Path) -> None:
+    if not models:
+        return
+
+    async with aiofiles.open(path, "w", encoding=_DEFAULT_ENCODING) as stream:
+        for model in models:
+            await stream.write(model.model_dump_json())
+            await stream.write("\n")
+
+
+async def load_models[T: BaseModel](
+    model_type: type[T],
+    path: Path
+) -> set[T]:
+    models = set()
 
     async with aiofiles.open(path, "r", encoding=_DEFAULT_ENCODING) as stream:
         async for line in stream:
-            posts.add(Post.model_validate_json(line))
+            models.add(model_type.model_validate_json(line))
 
-    return posts
-
-
-async def load_comments(path: Path) -> set[Post]:
-    comments = set()
-
-    async with aiofiles.open(path, "r", encoding=_DEFAULT_ENCODING) as stream:
-        async for line in stream:
-            comments.add(Comment.model_validate_json(line))
-
-    return comments
+    return models
 
 
 async def load(root: Path) -> Registry:
     post_file = get_post_file(root)
-    comment_file = get_comment_file(root)
+    post_comment_file = get_post_comment_file(root)
+    user_comment_file = get_user_comment_file(root)
 
     posts = set()
-    comments = set()
+    post_comments = set()
+    user_comments = set()
 
     if post_file.exists():
-        posts = await load_posts(post_file)
+        posts = await load_models(Post, post_file)
 
-    if comment_file.exists():
-        comments = await load_comments(comment_file)
+    if post_comment_file.exists():
+        post_comments = await load_models(PostComment, post_comment_file)
+
+    if user_comment_file.exists():
+        user_comments = await load_models(UserComment, user_comment_file)
 
     return Registry(
         posts=posts,
-        comments=comments
+        post_comments=post_comments,
+        user_comments=user_comments
     )
 
 
 async def dump(registry: Registry, root: Path) -> None:
     post_file = get_post_file(root)
-    comment_file = get_comment_file(root)
+    post_comment_file = get_post_comment_file(root)
+    user_comment_file = get_user_comment_file(root)
     encoding = _DEFAULT_ENCODING
 
-    async with \
-        aiofiles.open(post_file, "w", encoding=encoding) as post_stream, \
-        aiofiles.open(comment_file, "w", encoding=encoding) as comment_stream:
-
-        for post in registry.posts:
-            await write_model(post, post_stream)
-
-        for comment in registry.comments:
-            await write_model(comment, comment_stream)
+    await dump_models(registry.posts, post_file)
+    await dump_models(registry.post_comments, post_comment_file)
+    await dump_models(registry.user_comments, user_comment_file)

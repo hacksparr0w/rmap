@@ -7,8 +7,8 @@ from typing import Optional
 import aiohttp
 import aiofiles.os
 import playwright.async_api
-import rmap.post
 import rmap.registry
+import rmap.user
 
 
 _REGISTRY_DIRECTORY = Path.home() / ".rmap"
@@ -64,7 +64,7 @@ def retry(
             retries = 0
             last_error = None
 
-            while retries < maximum_retries:
+            while True:
                 if retries > 0 and on_retry:
                     await on_retry()
 
@@ -75,6 +75,10 @@ def retry(
                         raise
 
                     last_error = error
+
+                    if retries == maximum_retries:
+                        break
+
                     retries += 1
 
             raise last_error
@@ -85,10 +89,12 @@ def retry(
 
 
 async def scrape(client, url):
+    await client.page.goto(url)
+    await asyncio.sleep(3)
+
     return await asyncio.wait_for(
-        rmap.post.scrape(
-            client.page,
-            url
+        rmap.user.scrape_comments(
+            client.page
         ),
         timeout=180.0
     )
@@ -101,15 +107,13 @@ async def main():
         pass
 
     registry = await rmap.registry.load(_REGISTRY_DIRECTORY)
+    usernames = \
+        {x.author for x in registry.posts} | \
+        {x.author for x in registry.post_comments} | \
+        {x.author for x in registry.user_comments \
+            if x.subreddit == "universityofamsterdam"}
 
-    ids = {
-        x.post_id for x in registry.user_comments
-        if x.subreddit == "universityofamsterdam"
-    }
-
-    ids -= {x.id for x in registry.posts}
-
-    if not ids:
+    if not usernames:
         return
 
     async with playwright.async_api.async_playwright() as parent:
@@ -117,13 +121,13 @@ async def main():
 
         await client.restart()
 
-        for id in ids:
-            url = rmap.post.get_url_from_id(id)
+        for username in usernames:
+            url = rmap.user.get_comment_url(username)
 
             print(f"Scraping '{url}'")
 
             try:
-                post, comments = await retry(
+                comments = await retry(
                     errors=(
                         asyncio.TimeoutError,
                         playwright.async_api.TimeoutError
@@ -134,12 +138,12 @@ async def main():
                 print(f"An error occurred while scraping '{url}'")
                 print(error)
 
+                await client.page.screenshot(path="./last_error.png")
                 await client.restart()
 
                 continue
 
-            registry.posts.add(post)
-            registry.post_comments.update(comments)
+            registry.user_comments.update(comments)
 
         await client.stop()
         await rmap.registry.dump(registry, _REGISTRY_DIRECTORY)
