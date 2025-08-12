@@ -90,7 +90,7 @@ async def scrape(client, url):
             client.page,
             url
         ),
-        timeout=600.0
+        timeout=1200.0
     )
 
 
