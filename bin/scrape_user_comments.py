@@ -96,7 +96,7 @@ async def scrape(client, url):
         rmap.user.scrape_comments(
             client.page
         ),
-        timeout=180.0
+        timeout=300.0
     )
 
 
